@@ -534,8 +534,22 @@ recovery_1st_stage_command = 'recovery_1st_stage'
 
 ```
 
+### Create pcpass File in postgres home
+
+Create .pcppass File for PCP passwordless execution
+```
+su - postgres
+echo 'localhost:9898:pgpool:<pgpool user password>' > ~/.pcppass
+chmod 600 ~/.pcppass
+```
+
 ### Create configfiles in /etc/pgpool-II
 
+create `pool_passwd`
+```
+postgres:TEXT$PASSWORD
+pgpool:TEXT$PASSWORD
+```
 create pcp.conf
 ->`echo 'pgpool:'`pg_md5 PCP $PASSWORD_FOR_PGPOOL_USER` >> /etc/pgpool-II/pcp.conf`
 
