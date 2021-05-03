@@ -2,6 +2,9 @@
 ### This covers a postgres-cluster with multiple Server and pgpool-II seperated from them.
 
 #### Mainly [this](https://www.pgpool.net/docs/42/en/html/example-cluster.html) tutorial was used here.
+#### Info about [streaming replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
+#### pgpool-II [Docu](https://www.pgpool.net/docs/42/en/html/index.html)
+
 
 We assume to use this machines but you can Scale as much as you like:
 
