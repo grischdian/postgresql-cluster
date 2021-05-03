@@ -26,6 +26,8 @@ We assume to use this machines but you can Scale as much as you like:
 listen_addresses = '*'
 archive_mode = on
 archive_command = 'cp "%p" "/var/lib/pgsql/archivedir/%f"'
+synchronous_commit = remote_apply
+synchronous_standby_names = '*'
 max_wal_senders = 10
 max_replication_slots = 10
 wal_level = replica
@@ -73,8 +75,7 @@ cat id_rsa_pgpool >> authorized_keys
     - ```[pg2]# ssh postgres@pg2```
     - ```[pg2]# ssh postgres@pgX```
     - ...
-- Please Add public-key provided by pgpool-responsible-Team to all Servers' authorized_keys
-
+        
 - To allow repl user without specifying password for streaming replication and online recovery, and execute pg_rewind using postgres, we create the .pgpass file in postgres user's home directory and change the permission to 600 on each pg*`
 ```
 su - postgres
@@ -88,7 +89,10 @@ pgX:5432:postgres:postgres:<postgres user passowrd>
 chmod 600  /var/lib/pgsql/.pgpass
 ```
 
-- Copy recovery_1st_stage and pgool_remote_start 
+- create Scripts with the following content:
+    - ensure owner is `postgres`
+    - ensure group is `postgres`
+    - ensure mode is `700`
 
 /var/lib/pgsql/10/data/recovery_1st_stage
 
@@ -215,7 +219,275 @@ echo pgpool_remote_start: end: PostgreSQL on $DEST_NODE_HOST is started successf
 exit 0
 
 ```
+/var/lib/pgsql/10/data/failover.sh
 
+```
+#!/bin/bash
+# This script is run by failover_command.
+
+set -o xtrace
+
+# Special values:
+# 1)  %d = failed node id
+# 2)  %h = failed node hostname
+# 3)  %p = failed node port number
+# 4)  %D = failed node database cluster path
+# 5)  %m = new main node id
+# 6)  %H = new main node hostname
+# 7)  %M = old main node id
+# 8)  %P = old primary node id
+# 9)  %r = new main port number
+# 10) %R = new main database cluster path
+# 11) %N = old primary node hostname
+# 12) %S = old primary node port number
+# 13) %% = '%' character
+
+FAILED_NODE_ID="$1"
+FAILED_NODE_HOST="$2"
+FAILED_NODE_PORT="$3"
+FAILED_NODE_PGDATA="$4"
+NEW_MAIN_NODE_ID="$5"
+NEW_MAIN_NODE_HOST="$6"
+OLD_MAIN_NODE_ID="$7"
+OLD_PRIMARY_NODE_ID="$8"
+NEW_MAIN_NODE_PORT="$9"
+NEW_MAIN_NODE_PGDATA="${10}"
+OLD_PRIMARY_NODE_HOST="${11}"
+OLD_PRIMARY_NODE_PORT="${12}"
+
+PGHOME=/usr/pgsql-10
+
+
+echo failover.sh: start: failed_node_id=$FAILED_NODE_ID old_primary_node_id=$OLD_PRIMARY_NODE_ID failed_host=$FAILED_NODE_HOST new_main_host=$NEW_MAIN_NODE_HOST
+
+## If there's no main node anymore, skip failover.
+if [ $NEW_MAIN_NODE_ID -lt 0 ]; then
+    echo failover.sh: All nodes are down. Skipping failover.
+	exit 0
+fi
+
+## Test passwrodless SSH
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NEW_MAIN_NODE_HOST} -i ~/.ssh/id_rsa_pgpool ls /tmp > /dev/null
+
+if [ $? -ne 0 ]; then
+    echo failover.sh: passwrodless SSH to postgres@${NEW_MAIN_NODE_HOST} failed. Please setup passwrodless SSH.
+    exit 1
+fi
+
+## If Standby node is down, skip failover.
+if [ $FAILED_NODE_ID -ne $OLD_PRIMARY_NODE_ID ]; then
+
+    ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@$OLD_PRIMARY_NODE_HOST -i ~/.ssh/id_rsa_pgpool "
+        ${PGHOME}/bin/psql -p $OLD_PRIMARY_NODE_PORT -c \"SELECT pg_drop_replication_slot('${FAILED_NODE_HOST}')\"
+    "
+
+    if [ $? -ne 0 ]; then
+        echo failover.sh: Standby node is down. Skipping failover.
+        echo failover.sh: end: drop replication slot "${FAILED_NODE_HOST}" failed
+        exit 1
+    fi
+
+    echo failover.sh: end: Standby node is down. Skipping failover.
+    exit 0
+fi
+
+## Promote Standby node.
+echo failover.sh: Primary node is down, promote standby node ${NEW_MAIN_NODE_HOST}.
+
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    postgres@${NEW_MAIN_NODE_HOST} -i ~/.ssh/id_rsa_pgpool ${PGHOME}/bin/pg_ctl -D ${NEW_MAIN_NODE_PGDATA} -w promote
+
+if [ $? -ne 0 ]; then
+    echo failover.sh: end: failover failed
+    exit 1
+fi
+
+echo failover.sh: end: new_main_node_id=$NEW_MAIN_NODE_ID is promoted to a primary
+exit 0
+
+```
+/var/lib/pgsql/10/data/follow_primary.sh
+```
+#!/bin/bash
+# This script is run after failover_command to synchronize the Standby with the new Primary.
+# First try pg_rewind. If pg_rewind failed, use pg_basebackup.
+
+set -o xtrace
+
+# Special values:
+# 1)  %d = node id
+# 2)  %h = hostname
+# 3)  %p = port number
+# 4)  %D = node database cluster path
+# 5)  %m = new primary node id
+# 6)  %H = new primary node hostname
+# 7)  %M = old main node id
+# 8)  %P = old primary node id
+# 9)  %r = new primary port number
+# 10) %R = new primary database cluster path
+# 11) %N = old primary node hostname
+# 12) %S = old primary node port number
+# 13) %% = '%' character
+
+NODE_ID="$1"
+NODE_HOST="$2"
+NODE_PORT="$3"
+NODE_PGDATA="$4"
+NEW_PRIMARY_NODE_ID="$5"
+NEW_PRIMARY_NODE_HOST="$6"
+OLD_MAIN_NODE_ID="$7"
+OLD_PRIMARY_NODE_ID="$8"
+NEW_PRIMARY_NODE_PORT="$9"
+NEW_PRIMARY_NODE_PGDATA="${10}"
+
+PGHOME=/usr/pgsql-10
+ARCHIVEDIR=/var/lib/pgsql/archivedir
+REPLUSER=repl
+PCP_USER=pgpool
+PGPOOL_PATH=/usr/bin
+PCP_PORT=9898
+
+echo follow_primary.sh: start: Standby node ${NODE_ID}
+
+## Test passwrodless SSH
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NEW_PRIMARY_NODE_HOST} -i ~/.ssh/id_rsa_pgpool ls /tmp > /dev/null
+
+if [ $? -ne 0 ]; then
+    echo follow_main.sh: passwrodless SSH to postgres@${NEW_PRIMARY_NODE_HOST} failed. Please setup passwrodless SSH.
+    exit 1
+fi
+
+## Get PostgreSQL major version
+PGVERSION=`${PGHOME}/bin/initdb -V | awk '{print $3}' | sed 's/\..*//' | sed 's/\([0-9]*\)[a-zA-Z].*/\1/'`
+
+if [ $PGVERSION -ge 12 ]; then
+    RECOVERYCONF=${NODE_PGDATA}/myrecovery.conf
+else
+    RECOVERYCONF=${NODE_PGDATA}/recovery.conf
+fi
+
+## Check the status of Standby
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+postgres@${NODE_HOST} -i ~/.ssh/id_rsa_pgpool ${PGHOME}/bin/pg_ctl -w -D ${NODE_PGDATA} status
+
+
+## If Standby is running, synchronize it with the new Primary.
+if [ $? -eq 0 ]; then
+
+    echo follow_primary.sh: pg_rewind for node ${NODE_ID}
+
+    # Create replication slot "${NODE_HOST}"
+    ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NEW_PRIMARY_NODE_HOST} -i ~/.ssh/id_rsa_pgpool "
+        ${PGHOME}/bin/psql -p ${NEW_PRIMARY_NODE_PORT} -c \"SELECT pg_create_physical_replication_slot('${NODE_HOST}');\"
+    "
+
+    ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NODE_HOST} -i ~/.ssh/id_rsa_pgpool "
+
+        set -o errexit
+
+        ${PGHOME}/bin/pg_ctl -w -m f -D ${NODE_PGDATA} stop
+
+        ${PGHOME}/bin/pg_rewind -D ${NODE_PGDATA} --source-server=\"user=postgres host=${NEW_PRIMARY_NODE_HOST} port=${NEW_PRIMARY_NODE_PORT}\"
+
+        cat > ${RECOVERYCONF} << EOT
+primary_conninfo = 'host=${NEW_PRIMARY_NODE_HOST} port=${NEW_PRIMARY_NODE_PORT} user=${REPLUSER} application_name=${NODE_HOST} passfile=''/var/lib/pgsql/.pgpass'''
+recovery_target_timeline = 'latest'
+restore_command = 'scp ${NEW_PRIMARY_NODE_HOST}:${ARCHIVEDIR}/%f %p'
+primary_slot_name = '${NODE_HOST}'
+EOT
+
+        if [ ${PGVERSION} -ge 12 ]; then
+            touch ${NODE_PGDATA}/standby.signal
+        else
+            echo \"standby_mode = 'on'\" >> ${RECOVERYCONF}
+        fi
+
+        ${PGHOME}/bin/pg_ctl -l /dev/null -w -D ${NODE_PGDATA} start
+
+    "
+
+    if [ $? -ne 0 ]; then
+        echo follow_primary.sh: end: pg_rewind failed. Try pg_basebackup.
+
+        ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NODE_HOST} -i ~/.ssh/id_rsa_pgpool "
+
+            set -o errexit
+
+            # Execute pg_basebackup
+            rm -rf ${NODE_PGDATA}
+            rm -rf ${ARCHIVEDIR}/*
+            ${PGHOME}/bin/pg_basebackup -h ${NEW_PRIMARY_NODE_HOST} -U $REPLUSER -p ${NEW_PRIMARY_NODE_PORT} -D ${NODE_PGDATA} -X stream
+
+            if [ ${PGVERSION} -ge 12 ]; then
+                sed -i -e \"\\\$ainclude_if_exists = '$(echo ${RECOVERYCONF} | sed -e 's/\//\\\//g')'\" \
+                       -e \"/^include_if_exists = '$(echo ${RECOVERYCONF} | sed -e 's/\//\\\//g')'/d\" ${NODE_PGDATA}/postgresql.conf
+            fi
+
+            cat > ${RECOVERYCONF} << EOT
+primary_conninfo = 'host=${NEW_PRIMARY_NODE_HOST} port=${NEW_PRIMARY_NODE_PORT} user=${REPLUSER} application_name=${NODE_HOST} passfile=''/var/lib/pgsql/.pgpass'''
+recovery_target_timeline = 'latest'
+restore_command = 'scp ${NEW_PRIMARY_NODE_HOST}:${ARCHIVEDIR}/%f %p'
+primary_slot_name = '${NODE_HOST}'
+EOT
+
+            if [ ${PGVERSION} -ge 12 ]; then
+                touch ${NODE_PGDATA}/standby.signal
+            else
+                echo \"standby_mode = 'on'\" >> ${RECOVERYCONF}
+            fi
+        "
+
+        if [ $? -ne 0 ]; then
+            # drop replication slot
+            ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NEW_PRIMARY_NODE_HOST} -i ~/.ssh/id_rsa_pgpool "
+                ${PGHOME}/bin/psql -p ${NEW_PRIMARY_NODE_PORT} -c \"SELECT pg_drop_replication_slot('${NODE_HOST}')\"
+            "
+
+            echo follow_primary.sh: end: pg_basebackup failed
+            exit 1
+        fi
+
+        # start Standby node on ${NODE_HOST}
+        ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                postgres@${NODE_HOST} -i ~/.ssh/id_rsa_pgpool $PGHOME/bin/pg_ctl -l /dev/null -w -D ${NODE_PGDATA} start
+
+    fi
+
+    # If start Standby successfully, attach this node
+    if [ $? -eq 0 ]; then
+
+        # Run pcp_attact_node to attach Standby node to Pgpool-II.
+        ${PGPOOL_PATH}/pcp_attach_node -w -h localhost -U $PCP_USER -p ${PCP_PORT} -n ${NODE_ID}
+
+        if [ $? -ne 0 ]; then
+                echo follow_primary.sh: end: pcp_attach_node failed
+                exit 1
+        fi
+
+    # If start Standby failed, drop replication slot "${NODE_HOST}"
+    else
+
+        ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null postgres@${NEW_PRIMARY_NODE_HOST} -i ~/.ssh/id_rsa_pgpool \
+        ${PGHOME}/bin/psql -p ${NEW_PRIMARY_NODE_PORT} -c "SELECT pg_drop_replication_slot('${NODE_HOST}')"
+
+        echo follow_primary.sh: end: follow primary command failed
+        exit 1
+    fi
+
+else
+    echo follow_primary.sh: failed_nod_id=${NODE_ID} is not running. skipping follow primary command
+    exit 0
+fi
+
+echo follow_primary.sh: end: follow primary command is completed successfully
+exit 0
+```
+- Ensure pgpool servers are able to login to unprivileged account e.g `pgpool-user` on `pg*`
+    - add public key to authorized_keys 
+- Ensure that `pgpool-user` is able to run `failover.sh` and `follow_primary.sh` from below via sudo without password
+    - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/10/data/failover.sh
+    - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/10/data/follow_primary.sh
+    
 - Start ONLY `pg1`
 
 
@@ -226,7 +498,7 @@ exit 0
 - Change the following parameter:
 ```
 listen_addresses = '*'
-port = 9999
+port = 5432
 sr_check_user = 'pgpool'
 sr_check_password = ''
 health_check_period = 5
@@ -234,6 +506,7 @@ health_check_timeout = 30
 health_check_user = 'pgpool'
 health_check_password = ''
 health_check_max_retries = 3
+
 backend_hostname0 = 'server1'
 backend_port0 = 5432
 backend_weight0 = 1
@@ -247,7 +520,11 @@ backend_port1 = 5432
 backend_weight1 = 1
 backend_data_directory1 = '/var/lib/pgsql/10/data'
 backend_flag1 = 'ALLOW_TO_FAILOVER'
-backend_application_name0 = 'server2'
+backend_application_name1 = 'server2'
+
+enable_pool_hba = on
+pool_passwd = 'pool_passwd'
+
 failover_command = '/etc/pgpool-II/failover.sh %d %h %p %D %m %H %M %P %r %R %N %S'
 follow_primary_command = '/etc/pgpool-II/follow_primary.sh %d %h %p %D %m %H %M %P %r %R'
 recovery_user = 'postgres'
