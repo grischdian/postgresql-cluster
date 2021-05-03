@@ -493,7 +493,7 @@ exit 0
 
 ## Installation pgpool-II
 - Install pgpool-II-pg10
-- Each node diffrent ID in `/etc/pgpool-II/pgpool_node_id`
+- Each node diffrent ID in `/etc/pgpool-II/pgpool_node_id` (Just a number)
 - Use /etc/pgpool-II/pgpool.conf.sample-stream -> copy to pgpool.conf
 - Change the following parameter:
 ```
@@ -533,11 +533,6 @@ recovery_1st_stage_command = 'recovery_1st_stage'
 
 
 ```
-Set  correct `PGHOME` in `failover.sh` and `follow_primary.sh`
--> `/usr/pgsql-10`
-
-Set correct `PCP_USER` in `follow_primary.sh`
--> `pgpool`
 
 create pcp.conf
 ->`echo 'pgpool:'`pg_md5 PCP $PASSWORD_FOR_PGPOOL_USER` >> /etc/pgpool-II/pcp.conf`
@@ -553,6 +548,14 @@ Create `pg_hba.conf`
 ```
 host    all         pgpool           0.0.0.0/0          md5
 host    all         postgres         0.0.0.0/0          md5
+```
+Create `failover.sh`
+```
+ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/failover.sh $@
+```
+Create `follow_primary.sh`
+```
+ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/follow_primary.sh $@
 ```
 
 Start pgpool-II and let all Server join the Cluster
