@@ -534,6 +534,8 @@ recovery_1st_stage_command = 'recovery_1st_stage'
 
 ```
 
+### Create configfiles in /etc/pgpool-II
+
 create pcp.conf
 ->`echo 'pgpool:'`pg_md5 PCP $PASSWORD_FOR_PGPOOL_USER` >> /etc/pgpool-II/pcp.conf`
 
@@ -559,6 +561,10 @@ ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/follow_primary.sh $@
 ```
 
 Start pgpool-II and let all Server join the Cluster
-
-
-
+```
+pcp_recovery_node -h pgpool -p 9898 -U pgpool -n 0 -v -d
+```
+Check added Nodes and Cluster status
+```
+psql -h localhost -p 5432 -U pgpool postgres -c "show pool_nodes"
+```
