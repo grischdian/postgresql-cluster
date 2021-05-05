@@ -1,10 +1,25 @@
-# PostgreSQL Cluster with pgpool-II
+# PostgreSQL Cluster with pgpool-II on ** RHEL 8 **
 ### This covers a postgres-cluster with multiple Server and pgpool-II seperated from them.
+### **ONLY for RHEL 7** 
+You have to modify on `pg*` Path and Content
+- `/var/lib/pgsql/10/data/recovery_1st_stage`
+	- `PGHOME=/usr/pgsql-10`
+- `/var/lib/pgsql/10/data/pgpool_remote_start`
+	- `PGHOME=/usr/pgsql-10`
+- `/var/lib/pgsql/10/data/failover.sh`
+	- `PGHOME=/usr/pgsql-10`
+- `/var/lib/pgsql/10/data/follow_primary.sh`
+- sudo rules
+and on `pgpool*`
+- `/etc/pgpool-II/failover.sh`
+	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/data/failover.sh $@
+
+- `/etc/pgpool-II/follow_primary.sh`
+	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/data/follow_primary.sh $@`
 
 #### Mainly [this](https://www.pgpool.net/docs/42/en/html/example-cluster.html) tutorial was used here.
 #### Info about [streaming replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
 #### pgpool-II [Docu](https://www.pgpool.net/docs/42/en/html/index.html)
-
 
 We assume to use this machines but you can Scale as much as you like:
 
@@ -18,8 +33,7 @@ We assume to use this machines but you can Scale as much as you like:
 Installation PostgreSQL
 
 - Install postgresql-XX-server package on all `pg*`
-
-**Next step ONLY for RHEL 8**
+** Next step for RHEL 8 only **
 - Since postgresql on rhel 8 changed the directory structure and the pgpool is using the coorect way we have to symlink some directories first
 ```
 mkdir -p /usr/pgsql-10/share
@@ -129,7 +143,7 @@ DEST_NODE_ID="$5"
 DEST_NODE_PORT="$6"
 
 PRIMARY_NODE_HOST=$(hostname)
-PGHOME=/usr/pgsql-10
+PGHOME=/usr
 ARCHIVEDIR=/var/lib/pgsql/archivedir
 REPLUSER=repl
 
@@ -212,7 +226,7 @@ set -o xtrace
 DEST_NODE_HOST="$1"
 DEST_NODE_PGDATA="$2"
 
-PGHOME=/usr/pgsql-10
+PGHOME=/usr
 
 echo pgpool_remote_start: start: remote start Standby node $DEST_NODE_HOST
 
@@ -274,7 +288,7 @@ NEW_MAIN_NODE_PGDATA="${10}"
 OLD_PRIMARY_NODE_HOST="${11}"
 OLD_PRIMARY_NODE_PORT="${12}"
 
-PGHOME=/usr/pgsql-10
+PGHOME=/usr
 
 
 echo failover.sh: start: failed_node_id=$FAILED_NODE_ID old_primary_node_id=$OLD_PRIMARY_NODE_ID failed_host=$FAILED_NODE_HOST new_main_host=$NEW_MAIN_NODE_HOST
@@ -359,7 +373,7 @@ OLD_PRIMARY_NODE_ID="$8"
 NEW_PRIMARY_NODE_PORT="$9"
 NEW_PRIMARY_NODE_PGDATA="${10}"
 
-PGHOME=/usr/pgsql-10
+PGHOME=/usr
 ARCHIVEDIR=/var/lib/pgsql/archivedir
 REPLUSER=repl
 PCP_USER=pgpool
