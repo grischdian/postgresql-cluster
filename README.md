@@ -15,10 +15,10 @@ We assume to use this machines but you can Scale as much as you like:
 | pg2     | postgres - standby     |
 | pgX     | postgres - standby     |
 
-## Installation PostgreSQL
+Installation PostgreSQL
 
 - Install postgresql-XX-server package on all `pg*`
-#### Next step ONLY for RHEL 8
+**Next step ONLY for RHEL 8**
 - Since postgresql on rhel 8 changed the directory structure and the pgpool is using the coorect way we have to symlink some directories first
 ```
 mkdir -p /usr/pgsql-10/share
