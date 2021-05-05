@@ -94,6 +94,8 @@ cat id_rsa_pgpool >> authorized_keys
     - ...
         
 - To allow repl user without specifying password for streaming replication and online recovery, and execute pg_rewind using postgres, we create the .pgpass file in postgres user's home directory and change the permission to 600 on each pg*`
+
+** Please make sure to put the hostname of each server in the first column and ensure that DNS is configured properly**
 ```
 su - postgres
 vi /var/lib/pgsql/.pgpass
