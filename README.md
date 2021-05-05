@@ -574,6 +574,7 @@ create `pool_passwd`
 ```
 postgres:TEXT$PASSWORD
 pgpool:TEXT$PASSWORD
+ocdb:TEXT$PASSWORD
 ```
 create pcp.conf
 ->`echo 'pgpool:'`pg_md5 PCP $PASSWORD_FOR_PGPOOL_USER` >> /etc/pgpool-II/pcp.conf`
