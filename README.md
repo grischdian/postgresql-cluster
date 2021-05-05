@@ -12,10 +12,10 @@ You have to modify on `pg*` Path and Content
 - sudo rules
 and on `pgpool*`
 - `/etc/pgpool-II/failover.sh`
-	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/data/failover.sh $@
+	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/failover.sh $@
 
 - `/etc/pgpool-II/follow_primary.sh`
-	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/data/follow_primary.sh $@`
+	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/follow_primary.sh $@`
 
 #### Mainly [this](https://www.pgpool.net/docs/42/en/html/example-cluster.html) tutorial was used here.
 #### Info about [streaming replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
