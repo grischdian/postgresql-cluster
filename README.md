@@ -16,7 +16,17 @@ We assume to use this machines but you can Scale as much as you like:
 | pgX     | postgres - standby     |
 
 ## Installation PostgreSQL
+
 - Install postgresql-XX-server package on all `pg*`
+#### Next step ONLY for RHEL 8
+- Since postgresql on rhel 8 changed the directory structure and the pgpool is using the coorect way we have to symlink some directories first
+```
+mkdir -p /usr/pgsql-10/share
+cd /usr/pgsql-10
+ln -s /usr/lib64/pgsql lib
+cd share
+ln -s /usr/share/pgsql/extension .
+```
 - Install pgpool-II-pg10-extensions on all `pg*`
     - yes this will install pgpool as well as a dependecy
     - we don't start pgpool later - we just need the extension
