@@ -24,13 +24,13 @@ We assume to use this machines but you can Scale as much as you like:
 - Create /var/lib/pgsql/archivedir on ```pg*```
 - Configure Database according your needs
     - log settings / timezone etc.
-- Ensure the following parameters are set:
+- Ensure the following parameters are set: (The two comments need to be removed later)
 ```
 listen_addresses = '*'
 archive_mode = on
 archive_command = 'cp "%p" "/var/lib/pgsql/archivedir/%f"'
-synchronous_commit = remote_apply
-synchronous_standby_names = '*'
+#synchronous_commit = remote_apply
+#synchronous_standby_names = '*'
 max_wal_senders = 10
 max_replication_slots = 10
 wal_level = replica
@@ -490,6 +490,12 @@ exit 0
 - Ensure that `pgpool-user` is able to run `failover.sh` and `follow_primary.sh` from below via sudo without password
     - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/10/data/failover.sh
     - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/10/data/follow_primary.sh
+
+- Remove the Comments in postgresql.conf
+```
+synchronous_standby_names = '*'        # standby servers that provide sync rep
+synchronous_commit = remote_apply              # synchronization level;
+```
     
 - Start ONLY `pg1`
 
