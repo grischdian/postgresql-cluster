@@ -51,7 +51,10 @@ postgres=# \password pgpool
 postgres=# \password repl
 postgres=# \password postgres
 postgres=# GRANT pg_monitor TO pgpool;
-
+```
+- Create Extenstion
+```
+psql template1 -c "CREATE EXTENSION pgpool_recovery"
 ```
 
 - Create ```pg_hba.conf```
