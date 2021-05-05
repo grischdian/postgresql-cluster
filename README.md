@@ -504,8 +504,9 @@ exit 0
 - Ensure pgpool servers are able to login to unprivileged account e.g `pgpool-user` on `pg*`
     - add public key to authorized_keys 
 - Ensure that `pgpool-user` is able to run `failover.sh` and `follow_primary.sh` from below via sudo without password
-    - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/10/data/failover.sh
-    - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/10/data/follow_primary.sh
+    - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/data/failover.sh
+    - pgpool   ALL=(postgres) NOPASSWD: /var/lib/pgsql/data/follow_primary.sh
+    
 
 - Remove the Comments in postgresql.conf
 ```
@@ -593,11 +594,11 @@ host    all         postgres         0.0.0.0/0          md5
 ```
 Create `failover.sh`
 ```
-ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/failover.sh $@
+ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/data/failover.sh $@
 ```
 Create `follow_primary.sh`
 ```
-ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/follow_primary.sh $@
+ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/data/follow_primary.sh $@
 ```
 
 Start pgpool-II and let all Server join the Cluster
