@@ -605,6 +605,7 @@ Create `pg_hba.conf`
 ```
 host    all         pgpool           0.0.0.0/0          md5
 host    all         postgres         0.0.0.0/0          md5
+host    all         $OCUSER          $NETWORK/24        md5
 ```
 Create `failover.sh`
 ```
