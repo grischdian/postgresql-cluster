@@ -18,6 +18,7 @@ We assume to use this machines but you can Scale as much as you like:
 Installation PostgreSQL
 
 - Install postgresql-XX-server package on all `pg*`
+
 **Next step ONLY for RHEL 8**
 - Since postgresql on rhel 8 changed the directory structure and the pgpool is using the coorect way we have to symlink some directories first
 ```
