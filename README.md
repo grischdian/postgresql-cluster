@@ -372,6 +372,7 @@ OLD_MAIN_NODE_ID="$7"
 OLD_PRIMARY_NODE_ID="$8"
 NEW_PRIMARY_NODE_PORT="$9"
 NEW_PRIMARY_NODE_PGDATA="${10}"
+PGPOOL_SERVER="$11"
 
 PGHOME=/usr
 ARCHIVEDIR=/var/lib/pgsql/archivedir
@@ -490,7 +491,7 @@ EOT
     if [ $? -eq 0 ]; then
 
         # Run pcp_attact_node to attach Standby node to Pgpool-II.
-        ${PGPOOL_PATH}/pcp_attach_node -w -h localhost -U $PCP_USER -p ${PCP_PORT} -n ${NODE_ID}
+        ${PGPOOL_PATH}/pcp_attach_node -w -h ${PGPOOL_SERVER} -U $PCP_USER -p ${PCP_PORT} -n ${NODE_ID}
 
         if [ $? -ne 0 ]; then
                 echo follow_primary.sh: end: pcp_attach_node failed
@@ -526,6 +527,14 @@ exit 0
 ```
 synchronous_standby_names = '*'        # standby servers that provide sync rep
 synchronous_commit = remote_apply              # synchronization level;
+```
+### Create pcpass File in postgres home (this is needed for follow_primary.sh)
+
+Create .pcppass File for PCP passwordless execution
+```
+su - postgres
+echo '*:9898:pgpool:<pgpool user password>' > ~/.pcppass
+chmod 600 ~/.pcppass
 ```
     
 - Start ONLY `pg1`
@@ -574,14 +583,7 @@ recovery_1st_stage_command = 'recovery_1st_stage'
 
 ```
 
-### Create pcpass File in postgres home
 
-Create .pcppass File for PCP passwordless execution
-```
-su - postgres
-echo 'localhost:9898:pgpool:<pgpool user password>' > ~/.pcppass
-chmod 600 ~/.pcppass
-```
 
 ### Create configfiles in /etc/pgpool-II
 
