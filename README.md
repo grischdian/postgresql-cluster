@@ -528,7 +528,7 @@ exit 0
 synchronous_standby_names = '*'        # standby servers that provide sync rep
 synchronous_commit = remote_apply              # synchronization level;
 ```
-### Create pcpass File in postgres home (this is needed for follow_primary.sh)
+### Create pcpass File in postgres home on all pg-server (this is needed for follow_primary.sh)
 
 Create .pcppass File for PCP passwordless execution
 ```
@@ -575,7 +575,7 @@ enable_pool_hba = on
 pool_passwd = 'pool_passwd'
 
 failover_command = '/etc/pgpool-II/failover.sh %d %h %p %D %m %H %M %P %r %R %N %S'
-follow_primary_command = '/etc/pgpool-II/follow_primary.sh %d %h %p %D %m %H %M %P %r %R'
+follow_primary_command = '/etc/pgpool-II/follow_primary.sh %d %h %p %D %m %H %M %P %r %R <IP_OF_PGPOOL_VIP>'
 recovery_user = 'postgres'
 recovery_password = ''
 recovery_1st_stage_command = 'recovery_1st_stage'
