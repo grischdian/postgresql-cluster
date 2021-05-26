@@ -1,4 +1,75 @@
 # PostgreSQL Cluster with pgpool-II on ** RHEL 8 **
+#### Mainly [this](https://www.pgpool.net/docs/42/en/html/example-cluster.html) tutorial was used here.
+#### Info about [streaming replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
+#### pgpool-II [Docu](https://www.pgpool.net/docs/42/en/html/index.html)
+### This covers a postgres-cluster with one primary Server and pgpool-II sperated from them.
+We assue that you create only one User which is able to check and do replication and serving the application
+
+We assume to use this machines but you can Scale as much as you like:
+
+| Servername | Role | 
+| -------- | -------- | 
+| pgpool-1     | pgpool     |
+| pgpool-2     | pgpool     |
+| pg1     | postgres - primary     | 
+
+Installation PostgreSQL
+
+- Install postgresql-XX-server package on `pg1`
+** Next step for RHEL 8 only **
+- Since postgresql on rhel 8 changed the directory structure and the pgpool is using the coorect way we have to symlink some directories first
+```
+mkdir -p /usr/pgsql-10/share
+cd /usr/pgsql-10
+ln -s /usr/lib64/pgsql lib
+cd share
+ln -s /usr/share/pgsql/extension .
+```
+- Install pgpool-II-pg10-extensions on `pg1`
+    - yes this will install pgpool as well as a dependecy
+    - we don't start pgpool later - we just need the extension
+- Initialize Database on ```pg1```
+- Create /var/lib/pgsql/archivedir on ```pg1```
+- Configure Database according your needs
+    - log settings / timezone etc.
+- Ensure the following parameters are set: (The two comments need to be removed later)
+```
+listen_addresses = '*'
+archive_mode = on
+archive_command = 'cp "%p" "/var/lib/pgsql/archivedir/%f"'
+#synchronous_commit = remote_apply
+#synchronous_standby_names = '*'
+max_wal_senders = 10
+max_replication_slots = 10
+wal_level = replica
+hot_standby = on
+wal_log_hints = on
+```
+- Create 1 User:
+    - owncloud - for app and replication
+
+```
+psql -U postgres -p 5432
+postgres=# SET password_encryption = 'md5';
+postgres=# CREATE ROLE owncloud WITH REPLICATION LOGIN;
+postgres=# \password owncloud
+postgres=# GRANT pg_monitor TO owncloud;
+postgres=# CREATE DATABASE owncloudDB OWNER owncloud;
+```
+- Create Extenstion
+```
+psql template1 -c "CREATE EXTENSION pgpool_recovery"
+```
+
+- Create ```pg_hba.conf```
+```
+host    all             all             samenet                 md5
+
+```
+Start postgres on `pg1`
+
+DONE
+
 ### This covers a postgres-cluster with multiple Server and pgpool-II seperated from them.
 ### **ONLY for RHEL 7** 
 You have to modify on `pg*` Path and Content
@@ -17,9 +88,6 @@ and on `pgpool*`
 - `/etc/pgpool-II/follow_primary.sh`
 	- `ssh -tt pgpool@$6 sudo -u postgres /var/lib/pgsql/10/data/follow_primary.sh $@`
 
-#### Mainly [this](https://www.pgpool.net/docs/42/en/html/example-cluster.html) tutorial was used here.
-#### Info about [streaming replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
-#### pgpool-II [Docu](https://www.pgpool.net/docs/42/en/html/index.html)
 
 We assume to use this machines but you can Scale as much as you like:
 
