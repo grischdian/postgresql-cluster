@@ -70,6 +70,8 @@ Start postgres on `pg1`
 
 DONE
 
+You will find pgpool at the end of this file
+
 ### This covers a postgres-cluster with multiple Server and pgpool-II seperated from them.
 ### **ONLY for RHEL 7** 
 You have to modify on `pg*` Path and Content
