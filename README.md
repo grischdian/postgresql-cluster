@@ -24,6 +24,13 @@ cd /usr/pgsql-10
 ln -s /usr/lib64/pgsql lib
 cd share
 ln -s /usr/share/pgsql/extension .
+
+# Qutickfix for 
+mkdir -p /usr/pgsql-10/share
+cd /usr/pgsql-10
+ln -s /opt/rh/rh-postgresql10/root/usr/lib64/pgsql lib
+cd share
+ln -s /opt/rh/rh-postgresql10/root/usr/share/pgsql/extension .
 ```
 - Install pgpool-II-pg10-extensions on `pg1`
     - yes this will install pgpool as well as a dependecy
