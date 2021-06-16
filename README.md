@@ -1,4 +1,14 @@
 # PostgreSQL Cluster with pgpool-II on ** RHEL 8 **
+
+When starting Pgpool-II, if the pgpool_status file exists, Pgpool-II will read the backend status (up/down) from the pgpool_status file.
+If you want to ignore the pgpool_status file at startup of Pgpool-II, add "- D" to the start option OPTS to /etc/sysconfig/pgpool.
+
+```
+[all servers]# vi /etc/sysconfig/pgpool
+...
+OPTS=" -D -n"
+```
+
 #### Mainly [this](https://www.pgpool.net/docs/42/en/html/example-cluster.html) tutorial was used here.
 #### Info about [streaming replication](https://wiki.postgresql.org/wiki/Streaming_Replication)
 #### pgpool-II [Docu](https://www.pgpool.net/docs/42/en/html/index.html)
